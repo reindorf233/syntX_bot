@@ -122,8 +122,8 @@ bot = SyntheticsPublicBot()
 def main():
     """Main entry point"""
     try:
-        # Run the bot
-        asyncio.run(bot.run())
+        # Run the bot directly without async wrapper
+        telegram_bot.run()
     except KeyboardInterrupt:
         logger.info("Bot stopped by user")
     except Exception as e:
