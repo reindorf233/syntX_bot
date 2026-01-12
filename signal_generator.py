@@ -3,8 +3,7 @@ import numpy as np
 import logging
 from typing import Dict, Optional, Tuple
 from config import config
-from mt5_handler import mt5_handler
-from price_simulator import price_simulator
+from deriv_api_handler import DerivAPIHandler
 from technical_analyzer import technical_analyzer
 
 class SignalGenerator:
@@ -29,71 +28,121 @@ class SignalGenerator:
             'Jump': [
                 'Jump 25 Index',
                 'Jump 50 Index',
-                'Jump 75 Index',
+                'Jump 75 Index', 
                 'Jump 100 Index'
             ]
         }
+        
+        # Initialize Deriv API handler
+        self.deriv_handler = DerivAPIHandler(
+            config.deriv_app_id, 
+            config.deriv_token
+        )
+        
+        # Symbol mapping for Deriv API
+        self.deriv_symbols = {
+            'Volatility 10 Index': 'R_10',
+            'Volatility 25 Index': 'R_25',
+            'Volatility 50 Index': 'R_50',
+            'Volatility 75 Index': 'R_75',
+            'Volatility 100 Index': 'R_100',
+            'Boom 500 Index': 'BOOM500',
+            'Boom 1000 Index': 'BOOM1000',
+            'Crash 500 Index': 'CRASH500',
+            'Crash 1000 Index': 'CRASH1000',
+            'Step Index': 'STEPINDEX',
+            'Jump 25 Index': 'R_JUMPM25',
+            'Jump 50 Index': 'R_JUMPM50',
+            'Jump 75 Index': 'R_JUMPM75',
+            'Jump 100 Index': 'R_JUMPM100'
+        }
     
-    def fetch_data(self, symbol: str, timeframe: str = None, count: int = None) -> Optional[pd.DataFrame]:
-        """Fetch data from MT5 with fallback to simulation"""
+    async def fetch_data(self, symbol: str, timeframe: str = None, count: int = None) -> Optional[pd.DataFrame]:
+        """Fetch data from Deriv API with fallback to simulation"""
         if timeframe is None:
             timeframe = config.timeframe
         if count is None:
             count = config.bars_count
         
-        # Try MT5 first
+        # Get Deriv symbol name
+        deriv_symbol = self.deriv_symbols.get(symbol, symbol)
+        
+        # Try Deriv API first
         try:
-            if mt5_handler.connect():
-                data = mt5_handler.fetch_ohlc_data(symbol, timeframe, count)
+            if await self.deriv_handler.connect():
+                data = await self.deriv_handler.get_ohlc(deriv_symbol, timeframe, count)
                 if data is not None and len(data) > 0:
-                    logging.info(f"Successfully fetched MT5 data for {symbol}")
+                    logging.info(f"Successfully fetched Deriv data for {symbol}")
                     return data
                 else:
-                    logging.warning(f"MT5 returned no data for {symbol}")
+                    logging.warning(f"Deriv API returned no data for {symbol}")
             else:
-                logging.warning("MT5 connection failed, using simulation")
+                logging.warning("Deriv API connection failed")
         except Exception as e:
-            logging.error(f"MT5 data fetch failed for {symbol}: {e}")
+            logging.error(f"Deriv API data fetch failed for {symbol}: {e}")
         
-        # Fallback to simulation
+        # Fallback to simulation (basic price simulation)
         try:
-            simulated_data = price_simulator.simulate_prices(symbol, timeframe, count)
-            if simulated_data is not None:
-                logging.info(f"Using simulated data for {symbol}")
-                # Add a flag to indicate simulated data
-                simulated_data.attrs['simulated'] = True
-                return simulated_data
+            logging.info(f"Using basic simulation for {symbol}")
+            # Create basic simulated data
+            dates = pd.date_range(end=pd.Timestamp.now(), periods=count, freq='5T')
+            base_price = 100.0  # Base price for simulation
+            
+            # Generate random price movements
+            np.random.seed(hash(symbol) % 2**32)  # Consistent random seed per symbol
+            returns = np.random.normal(0, 0.002, count)  # 0.2% volatility
+            prices = base_price * (1 + np.cumsum(returns))
+            
+            # Create OHLC data
+            data = pd.DataFrame({
+                'open': prices[:-1],
+                'high': np.maximum(prices[:-1], prices[1:]) * (1 + np.random.uniform(0, 0.001, count-1)),
+                'low': np.minimum(prices[:-1], prices[1:]) * (1 - np.random.uniform(0, 0.001, count-1)),
+                'close': prices[1:],
+                'volume': np.random.randint(100, 1000, count-1)
+            }, index=dates[:-1])
+            
+            data.attrs['simulated'] = True
+            return data
+            
         except Exception as e:
             logging.error(f"Simulation failed for {symbol}: {e}")
         
         return None
     
-    def get_current_price(self, symbol: str) -> Optional[Tuple[float, float, bool]]:
+    async def get_current_price(self, symbol: str) -> Optional[Tuple[float, float, bool]]:
         """Get current price with indication if simulated"""
-        # Try MT5 first
+        # Get Deriv symbol name
+        deriv_symbol = self.deriv_symbols.get(symbol, symbol)
+        
+        # Try Deriv API first
         try:
-            if mt5_handler.connect():
-                price = mt5_handler.get_current_price(symbol)
-                if price:
-                    return price[0], price[1], False  # bid, ask, not_simulated
+            if await self.deriv_handler.connect():
+                ticks = await self.deriv_handler.get_ticks_history(deriv_symbol, 1)
+                if ticks is not None and len(ticks) > 0:
+                    price = ticks.iloc[-1]['close']
+                    # For synthetic indices, bid/ask are usually close to each other
+                    spread = price * 0.0001  # Small spread
+                    return price - spread, price + spread, False  # bid, ask, not_simulated
         except Exception as e:
-            logging.error(f"MT5 price fetch failed for {symbol}: {e}")
+            logging.error(f"Deriv API price fetch failed for {symbol}: {e}")
         
         # Fallback to simulation
         try:
-            price = price_simulator.get_current_price(symbol)
-            if price:
-                return price[0], price[1], True  # bid, ask, simulated
+            # Use last known price or default
+            base_price = 100.0
+            spread = base_price * 0.0001
+            return base_price - spread, base_price + spread, True  # bid, ask, simulated
         except Exception as e:
             logging.error(f"Simulated price failed for {symbol}: {e}")
         
         return None
     
-    def analyze_symbol(self, symbol: str) -> Optional[Dict]:
+    async def analyze_symbol(self, symbol: str) -> Optional[Dict]:
         """Analyze a single symbol and generate signal"""
         try:
             # Fetch data
-            data = self.fetch_data(symbol)
+            data = await self.fetch_data(symbol)
             if data is None or len(data) < 50:
                 logging.warning(f"Insufficient data for {symbol}")
                 return None
@@ -105,7 +154,7 @@ class SignalGenerator:
             signal_strength = technical_analyzer.get_signal_strength(data)
             
             # Get current price
-            current_price_info = self.get_current_price(symbol)
+            current_price_info = await self.get_current_price(symbol)
             if current_price_info is None:
                 return None
             
@@ -184,14 +233,14 @@ class SignalGenerator:
             logging.error(f"Error calculating position size: {e}")
             return 0.01
     
-    def scan_all_symbols(self) -> Dict[str, Dict]:
+    async def scan_all_symbols(self) -> Dict[str, Dict]:
         """Scan all configured symbols and return signals"""
         signals = {}
         
         for category, symbol_list in self.symbols.items():
             for symbol in symbol_list:
                 try:
-                    signal = self.analyze_symbol(symbol)
+                    signal = await self.analyze_symbol(symbol)
                     if signal and signal['strength'] >= config.signal_strength_threshold:
                         signals[symbol] = signal
                         logging.info(f"Strong signal found: {symbol} {signal['direction']} {signal['strength']}/10")
@@ -200,12 +249,12 @@ class SignalGenerator:
         
         return signals
     
-    def get_best_signals(self, min_strength: float = None) -> Dict[str, Dict]:
+    async def get_best_signals(self, min_strength: float = None) -> Dict[str, Dict]:
         """Get best signals above threshold"""
         if min_strength is None:
             min_strength = config.signal_strength_threshold
         
-        all_signals = self.scan_all_symbols()
+        all_signals = await self.scan_all_symbols()
         
         # Filter by strength and sort
         strong_signals = {

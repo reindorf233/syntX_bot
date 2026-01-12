@@ -53,7 +53,7 @@ class AutoScanner:
             scan_start = datetime.now()
             
             # Get all signals
-            all_signals = signal_generator.scan_all_symbols()
+            all_signals = await signal_generator.scan_all_symbols()
             
             if not all_signals:
                 logging.info("No signals found in auto-scan")

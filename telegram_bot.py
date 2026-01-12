@@ -117,7 +117,7 @@ class TelegramBot:
         await update.message.reply_text("🔍 *Scanning all symbols for strong signals...*", parse_mode="Markdown")
         
         try:
-            signals = signal_generator.get_best_signals()
+            signals = await signal_generator.get_best_signals()
             
             if not signals:
                 await update.message.reply_text("📊 *No strong signals found at the moment.*\n\nTry again in a few minutes!", parse_mode="Markdown")
@@ -313,7 +313,7 @@ Join our public channel for automatic 10/10 signal alerts!
         await query.edit_message_text(f"🔍 *Analyzing {symbol}...*", parse_mode="Markdown")
         
         try:
-            signal = signal_generator.analyze_symbol(symbol)
+            signal = await signal_generator.analyze_symbol(symbol)
             
             if not signal:
                 await query.edit_message_text(
