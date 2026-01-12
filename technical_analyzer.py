@@ -1,6 +1,5 @@
 import pandas as pd
 import numpy as np
-import pandas_ta as ta
 import logging
 from typing import Dict, List, Tuple, Optional
 from config import config
@@ -18,70 +17,82 @@ class TechnicalAnalyzer:
     
     def calculate_indicators(self, df: pd.DataFrame) -> pd.DataFrame:
         """Calculate all technical indicators"""
-        try:
-            df = df.copy()
-            
-            # RSI
-            df['rsi'] = ta.rsi(df['close'], length=self.rsi_period)
-            
-            # Bollinger Bands
-            bb = ta.bbands(df['close'], length=self.bb_period, std=self.bb_std)
-            if bb is not None and not bb.empty:
-                # Get the actual column names from the result
-                bb_columns = [col for col in bb.columns if col.startswith('BBU_')]
-                if bb_columns:
-                    df['bb_upper'] = bb[bb_columns[0]]
-                    bb_columns = [col for col in bb.columns if col.startswith('BBM_')]
-                    if bb_columns:
-                        df['bb_middle'] = bb[bb_columns[0]]
-                    bb_columns = [col for col in bb.columns if col.startswith('BBL_')]
-                    if bb_columns:
-                        df['bb_lower'] = bb[bb_columns[0]]
-                    
-                    if 'bb_upper' in df and 'bb_lower' in df:
-                        df['bb_width'] = df['bb_upper'] - df['bb_lower']
-                        df['bb_position'] = (df['close'] - df['bb_lower']) / df['bb_width']
-            
-            # EMAs
-            df['ema_fast'] = ta.ema(df['close'], length=self.ema_fast)
-            df['ema_slow'] = ta.ema(df['close'], length=self.ema_slow)
-            
-            # MACD
-            macd = ta.macd(df['close'], fast=self.macd_fast, slow=self.macd_slow, signal=self.macd_signal)
-            if macd is not None and not macd.empty:
-                # Get actual column names from result
-                macd_cols = [col for col in macd.columns if col.startswith('MACD_') and not col.endswith('s') and not col.endswith('h')]
-                if macd_cols:
-                    df['macd'] = macd[macd_cols[0]]
-                macd_signal_cols = [col for col in macd.columns if col.endswith('s')]
-                if macd_signal_cols:
-                    df['macd_signal'] = macd[macd_signal_cols[0]]
-                macd_hist_cols = [col for col in macd.columns if col.endswith('h')]
-                if macd_hist_cols:
-                    df['macd_histogram'] = macd[macd_hist_cols[0]]
-            
-            # ATR for volatility and risk management
-            df['atr'] = ta.atr(df['high'], df['low'], df['close'], length=14)
-            
-            # Volume indicators
-            if 'volume' in df.columns:
-                df['volume_sma'] = ta.sma(df['volume'], length=20)
-                df['volume_ratio'] = df['volume'] / df['volume_sma']
-            else:
-                # Add default volume if not present
-                df['volume'] = 100  # Default volume
-                df['volume_sma'] = 100
-                df['volume_ratio'] = 1.0
-            
-            # Price changes
-            df['price_change'] = df['close'].pct_change()
-            df['price_change_abs'] = df['price_change'].abs()
-            
-            return df
-            
-        except Exception as e:
-            logging.error(f"Error calculating indicators: {e}")
-            return df
+        df = df.copy()
+        
+        # RSI (manual implementation)
+        df['rsi'] = self.calculate_rsi(df['close'], self.rsi_period)
+        
+        # Bollinger Bands (manual implementation)
+        bb_upper, bb_middle, bb_lower = self.calculate_bollinger_bands(df['close'], self.bb_period, self.bb_std)
+        df['bb_upper'] = bb_upper
+        df['bb_middle'] = bb_middle
+        df['bb_lower'] = bb_lower
+        df['bb_width'] = (bb_upper - bb_lower) / bb_middle
+        df['bb_position'] = (df['close'] - bb_lower) / (bb_upper - bb_lower)
+        
+        # EMAs (manual implementation)
+        df['ema_fast'] = df['close'].ewm(span=self.ema_fast).mean()
+        df['ema_slow'] = df['close'].ewm(span=self.ema_slow).mean()
+        
+        # MACD (manual implementation)
+        macd_line, macd_signal, macd_histogram = self.calculate_macd(df['close'], self.macd_fast, self.macd_slow, self.macd_signal)
+        df['macd'] = macd_line
+        df['macd_signal'] = macd_signal
+        df['macd_histogram'] = macd_histogram
+        
+        # ATR (manual implementation)
+        df['atr'] = self.calculate_atr(df['high'], df['low'], df['close'], 14)
+        
+        # Volume indicators
+        if 'volume' in df.columns:
+            df['volume_sma'] = df['volume'].rolling(window=20).mean()
+            df['volume_ratio'] = df['volume'] / df['volume_sma']
+        else:
+            # Add default volume if not present
+            df['volume'] = 1000
+            df['volume_sma'] = 1000
+            df['volume_ratio'] = 1.0
+        
+        # Price changes
+        df['price_change'] = df['close'].pct_change()
+        df['price_change_abs'] = df['price_change'].abs()
+        
+        return df
+    
+    def calculate_rsi(self, prices: pd.Series, period: int = 14) -> pd.Series:
+        """Calculate RSI manually"""
+        delta = prices.diff()
+        gain = (delta.where(delta > 0, 0)).rolling(window=period).mean()
+        loss = (-delta.where(delta < 0, 0)).rolling(window=period).mean()
+        rs = gain / loss
+        rsi = 100 - (100 / (1 + rs))
+        return rsi
+    
+    def calculate_bollinger_bands(self, prices: pd.Series, period: int = 20, std: float = 2.0):
+        """Calculate Bollinger Bands manually"""
+        middle = prices.rolling(window=period).mean()
+        std_dev = prices.rolling(window=period).std()
+        upper = middle + (std_dev * std)
+        lower = middle - (std_dev * std)
+        return upper, middle, lower
+    
+    def calculate_macd(self, prices: pd.Series, fast: int = 12, slow: int = 26, signal: int = 9):
+        """Calculate MACD manually"""
+        ema_fast = prices.ewm(span=fast).mean()
+        ema_slow = prices.ewm(span=slow).mean()
+        macd_line = ema_fast - ema_slow
+        macd_signal = macd_line.ewm(span=signal).mean()
+        macd_histogram = macd_line - macd_signal
+        return macd_line, macd_signal, macd_histogram
+    
+    def calculate_atr(self, high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+        """Calculate ATR manually"""
+        tr1 = high - low
+        tr2 = abs(high - close.shift())
+        tr3 = abs(low - close.shift())
+        tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+        atr = tr.rolling(window=period).mean()
+        return atr
     
     def identify_fvg(self, df: pd.DataFrame) -> List[Dict]:
         """Identify Fair Value Gaps (FVGs)"""
