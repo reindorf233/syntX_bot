@@ -162,6 +162,36 @@ class SignalGenerator:
             
         except Exception as e:
             logging.error(f"Simulation failed for {symbol}: {e}")
+            return None
+    
+    async def get_current_price(self, symbol: str) -> Optional[Tuple[float, float, bool]]:
+        """Get current price with indication if simulated"""
+        # Get Deriv symbol name
+        deriv_symbol = self.deriv_symbols.get(symbol, symbol)
+        
+        # Try Deriv API first
+        try:
+            if await self.deriv_handler.connect():
+                ticks = await self.deriv_handler.get_ticks_history(deriv_symbol, 1)
+                if ticks is not None and len(ticks) > 0:
+                    raw_price = ticks.iloc[-1]['close']
+                    # Normalize price if needed
+                    normalized_price = self.normalize_deriv_price(raw_price, deriv_symbol)
+                    
+                    # For synthetic indices, bid/ask are usually close to each other
+                    spread = normalized_price * 0.0001  # Small spread
+                    return normalized_price - spread, normalized_price + spread, False  # bid, ask, not_simulated
+        except Exception as e:
+            logging.error(f"Deriv API price fetch failed for {symbol}: {e}")
+        
+        # Fallback to simulation
+        try:
+            # Use last known price or default
+            base_price = 100.0
+            spread = base_price * 0.0001
+            return base_price - spread, base_price + spread, True  # bid, ask, simulated
+        except Exception as e:
+            logging.error(f"Simulated price failed for {symbol}: {e}")
         
         return None
     
@@ -234,12 +264,6 @@ class SignalGenerator:
             logging.error(f"Error normalizing price for {symbol}: {e}")
             return round(raw_price, 2)
     
-    async def get_current_price(self, symbol: str) -> Optional[Tuple[float, float, bool]]:
-        """Get current price with indication if simulated"""
-        # Get Deriv symbol name
-        deriv_symbol = self.deriv_symbols.get(symbol, symbol)
-        
-        # Try Deriv API first
         try:
             if await self.deriv_handler.connect():
                 ticks = await self.deriv_handler.get_ticks_history(deriv_symbol, 1)
@@ -256,25 +280,8 @@ class SignalGenerator:
         
         # Fallback to simulation
         try:
-            # Use realistic base price for simulation
-            base_prices = {
-                'Step Index': 1500,
-                'Volatility 10 Index': 5750,
-                'Volatility 25 Index': 5750,
-                'Volatility 50 Index': 5750,
-                'Volatility 75 Index': 5750,
-                'Volatility 100 Index': 5750,
-                'Boom 500 Index': 1500,
-                'Boom 1000 Index': 1500,
-                'Crash 500 Index': 1500,
-                'Crash 1000 Index': 1500,
-                'Jump 25 Index': 5750,
-                'Jump 50 Index': 5750,
-                'Jump 75 Index': 5750,
-                'Jump 100 Index': 5750
-            }
-            
-            base_price = base_prices.get(symbol, 1000)
+            # Use last known price or default
+            base_price = 100.0
             spread = base_price * 0.0001
             return base_price - spread, base_price + spread, True  # bid, ask, simulated
         except Exception as e:
@@ -443,19 +450,21 @@ class SignalGenerator:
 • Position Size: {signal['position_size']} lots
 • Risk Amount: ${config.min_account_balance * (config.risk_percentage / 100):.2f}
 
-📈 *Technical Analysis:*
-• SMC FVGs: {signal['smc_analysis']['fvgs']}
+🔍 *Technical Analysis:*
+• Current Price: {signal['current_price']}
+• ATR: {signal['atr']}
+• FVGs: {signal['smc_analysis']['fvgs']}
 • Order Blocks: {signal['smc_analysis']['order_blocks']}
 • Liquidity Sweeps: {signal['smc_analysis']['sweeps']}
-• ATR: {signal['atr']}
 
-⏰ *Time: {signal['timestamp'].strftime('%H:%M:%S')}*
-"""
-            return message
+⏰ {signal['timestamp'].strftime('%Y-%m-%d %H:%M:%S UTC')}
+            """
+            
+            return message.strip()
             
         except Exception as e:
             logging.error(f"Error formatting signal message: {e}")
-            return "❌ Error formatting signal message"
+            return f"Error formatting signal for {signal.get('symbol', 'Unknown')}"
 
-# Global instance
+# Global signal generator instance
 signal_generator = SignalGenerator()
