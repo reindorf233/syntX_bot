@@ -1,4 +1,4 @@
-# Enhanced Requirements for Advanced Deriv SyntX Bot
+# Professional Deriv SyntX Bot Requirements
 
 # Core Dependencies
 python-telegram-bot>=20.0

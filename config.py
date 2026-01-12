@@ -10,19 +10,9 @@ class Config:
         self.public_channel_id = os.getenv('PUBLIC_CHANNEL_ID')
         self.bot_owner_id = os.getenv('BOT_OWNER_ID')  # Admin control
         
-        # Deriv API Configuration
+        # Deriv API Configuration (Primary)
         self.deriv_app_id = os.getenv('DERIV_APP_ID')
         self.deriv_token = os.getenv('DERIV_TOKEN')
-        
-        # MT5 Configuration (fallback)
-        try:
-            self.mt5_login = int(os.getenv('MT5_LOGIN', 0))
-        except ValueError:
-            self.mt5_login = 0
-            logging.warning("Invalid MT5_LOGIN format, using 0")
-        
-        self.mt5_password = os.getenv('MT5_PASSWORD')
-        self.mt5_server = os.getenv('MT5_SERVER')
         
         # Bot Settings
         self.scan_interval_minutes = int(os.getenv('SCAN_INTERVAL_MINUTES', 10))

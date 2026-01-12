@@ -4,7 +4,7 @@ import signal
 import sys
 from telegram_bot import telegram_bot
 from auto_scanner import auto_scanner, scheduled_tasks
-from mt5_handler import mt5_handler
+from deriv_api_handler import DerivAPIHandler
 from config import config
 
 # Configure logging
@@ -22,20 +22,25 @@ logger = logging.getLogger(__name__)
 class SyntheticsPublicBot:
     def __init__(self):
         self.running = False
+        self.deriv_handler = None
         
     async def start(self):
-        """Start the bot and all background tasks"""
+        """Start bot and all background tasks"""
         try:
             logger.info("Starting Deriv SyntX Public Bot...")
             
-            # Initialize MT5 connection (optional)
+            # Initialize Deriv API connection
             try:
-                if mt5_handler.connect():
-                    logger.info("MT5 connection established")
+                self.deriv_handler = DerivAPIHandler(
+                    config.deriv_app_id, 
+                    config.deriv_token
+                )
+                if await self.deriv_handler.connect():
+                    logger.info("Deriv API connection established")
                 else:
-                    logger.warning("MT5 connection failed - will use simulation mode")
+                    logger.warning("Deriv API connection failed - will use simulation mode")
             except Exception as e:
-                logger.error(f"MT5 initialization error: {e}")
+                logger.error(f"Deriv initialization error: {e}")
             
             # Start auto-scanner
             await auto_scanner.start_scanner()
@@ -53,7 +58,7 @@ class SyntheticsPublicBot:
                         "🚀 *Deriv SyntX Bot is now online!*\n\n"
                         "📊 24/7 automated scanning active\n"
                         "🔍 Real-time signal analysis\n"
-                        "💥 Boom/Crash & Volatility alerts\n\n"
+                        "💥 Synthetic indices alerts\n\n"
                         "Use /start to begin!"
                     )
                 except Exception as e:
@@ -64,7 +69,7 @@ class SyntheticsPublicBot:
             raise
     
     async def stop(self, signum=None, frame=None):
-        """Stop the bot gracefully"""
+        """Stop bot gracefully"""
         if not self.running:
             return
         
@@ -77,8 +82,9 @@ class SyntheticsPublicBot:
             # Stop scheduled tasks
             await scheduled_tasks.stop_tasks()
             
-            # Disconnect MT5
-            mt5_handler.disconnect()
+            # Disconnect Deriv API
+            if self.deriv_handler:
+                await self.deriv_handler.disconnect()
             
             # Send shutdown message to channel if configured
             if config.public_channel_id:
@@ -96,7 +102,7 @@ class SyntheticsPublicBot:
         except Exception as e:
             logger.error(f"Error stopping bot: {e}")
     
-    async def run(self):
+    def run(self):
         """Main bot run method"""
         # Setup signal handlers for graceful shutdown
         signal.signal(signal.SIGINT, lambda s, f: asyncio.create_task(self.stop(s, f)))
@@ -104,31 +110,16 @@ class SyntheticsPublicBot:
         
         try:
             # Start the bot
-            await self.start()
-            
-            # Run the Telegram bot (this is blocking)
-            telegram_bot.application.run_polling()
+            asyncio.run(self.start())
             
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
         except Exception as e:
             logger.error(f"Fatal error: {e}")
-        finally:
-            await self.stop()
+            sys.exit(1)
 
 # Global bot instance
 bot = SyntheticsPublicBot()
 
-def main():
-    """Main entry point"""
-    try:
-        # Run the bot directly without async wrapper
-        telegram_bot.run()
-    except KeyboardInterrupt:
-        logger.info("Bot stopped by user")
-    except Exception as e:
-        logger.error(f"Fatal error in main: {e}")
-        sys.exit(1)
-
 if __name__ == "__main__":
-    main()
+    bot.run()
