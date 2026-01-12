@@ -61,13 +61,16 @@ class Config:
     def _validate_config(self):
         """Validate configuration settings"""
         if not self.telegram_bot_token:
-            raise ValueError("TELEGRAM_BOT_TOKEN is required")
+            logger.warning("TELEGRAM_BOT_TOKEN not set - bot will not work")
         
-        if not self.public_channel_id:
-            logging.warning("PUBLIC_CHANNEL_ID not set - broadcast alerts disabled")
-            
-        if self.mt5_login == 0 or not self.mt5_password or not self.mt5_server:
-            logging.warning("MT5 credentials incomplete - will use simulation mode only")
+        if not self.deriv_app_id or not self.deriv_token:
+            logger.warning("Deriv API credentials not set - will use simulation mode")
+        
+        if self.signal_strength_threshold < 1 or self.signal_strength_threshold > 10:
+            logger.warning("SIGNAL_STRENGTH_THRESHOLD should be between 1-10")
+        
+        if self.risk_percentage < 0.1 or self.risk_percentage > 5.0:
+            logger.warning("RISK_PERCENTAGE should be between 0.1-5.0")
 
 # Global config instance
 config = Config()
