@@ -110,6 +110,38 @@ class SignalGenerator:
         
         return None
     
+    def normalize_deriv_price(self, raw_price: float, symbol: str) -> float:
+        """Normalize Deriv API price to standard display range"""
+        try:
+            # Volatility indices often have scaling issues
+            if symbol.startswith('R_') and symbol != 'R_75':  # Exclude R_75 as baseline
+                # Common scaling factors based on typical ranges
+                if raw_price > 90000:
+                    # Price is likely scaled up, normalize down
+                    scaling_factors = {
+                        'R_10': 17.36,   # Volatility 10
+                        'R_25': 17.36,   # Volatility 25  
+                        'R_50': 17.36,   # Volatility 50
+                        'R_100': 17.36,  # Volatility 100
+                        'R_JUMPM25': 17.36,  # Jump 25
+                        'R_JUMPM50': 17.36,  # Jump 50
+                        'R_JUMPM75': 17.36,  # Jump 75
+                        'R_JUMPM100': 17.36, # Jump 100
+                    }
+                    factor = scaling_factors.get(symbol, 17.36)
+                    normalized = raw_price / factor
+                    logging.info(f"Normalized {symbol} price: {raw_price} -> {normalized}")
+                    return round(normalized, 2)
+            
+            # Boom/Crash indices typically don't need normalization
+            # Step Index also typically stable
+            
+            return round(raw_price, 2)
+            
+        except Exception as e:
+            logging.error(f"Error normalizing price for {symbol}: {e}")
+            return round(raw_price, 2)
+    
     async def get_current_price(self, symbol: str) -> Optional[Tuple[float, float, bool]]:
         """Get current price with indication if simulated"""
         # Get Deriv symbol name
@@ -120,10 +152,13 @@ class SignalGenerator:
             if await self.deriv_handler.connect():
                 ticks = await self.deriv_handler.get_ticks_history(deriv_symbol, 1)
                 if ticks is not None and len(ticks) > 0:
-                    price = ticks.iloc[-1]['close']
+                    raw_price = ticks.iloc[-1]['close']
+                    # Normalize price if needed
+                    normalized_price = self.normalize_deriv_price(raw_price, deriv_symbol)
+                    
                     # For synthetic indices, bid/ask are usually close to each other
-                    spread = price * 0.0001  # Small spread
-                    return price - spread, price + spread, False  # bid, ask, not_simulated
+                    spread = normalized_price * 0.0001  # Small spread
+                    return normalized_price - spread, normalized_price + spread, False  # bid, ask, not_simulated
         except Exception as e:
             logging.error(f"Deriv API price fetch failed for {symbol}: {e}")
         
@@ -177,6 +212,13 @@ class SignalGenerator:
                 entry_price = current_price
                 stop_loss = current_price - (atr * 1.5)
                 take_profit = current_price + (atr * 2.5)
+            
+            # Normalize all prices for display consistency
+            deriv_symbol = self.deriv_symbols.get(symbol, symbol)
+            entry_price = self.normalize_deriv_price(entry_price, deriv_symbol)
+            stop_loss = self.normalize_deriv_price(stop_loss, deriv_symbol)
+            take_profit = self.normalize_deriv_price(take_profit, deriv_symbol)
+            current_price = self.normalize_deriv_price(current_price, deriv_symbol)
             
             # Calculate position size for risk management
             risk_amount = config.min_account_balance * (config.risk_percentage / 100)

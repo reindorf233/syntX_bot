@@ -358,7 +358,42 @@ Join our public channel for automatic 10/10 signal alerts!
         elif "help" in message_text:
             await self.handle_help(update, context)
         else:
-            await update.message.reply_text("🤔 Use /start to see available options or /help for assistance.")
+            await update.message.reply_text("🤔 Use /start to see available options.")
+    
+    def format_signal_message(self, signal: Dict) -> str:
+        """Format signal for Telegram message"""
+        try:
+            direction_emoji = "🟢" if signal['direction'] == 'bullish' else "🔴" if signal['direction'] == 'bearish' else "🟡"
+            simulated_tag = "📊 SIMULATED" if signal['is_simulated'] else "📈 LIVE"
+            
+            message = f"""
+{direction_emoji} *{signal['symbol']}*
+{simulated_tag} • Strength: {signal['strength']}/10
+
+📊 *Signal Details:*
+• Direction: {signal['direction'].upper()}
+• Entry: {signal['entry_price']}
+• Stop Loss: {signal['stop_loss']}
+• Take Profit: {signal['take_profit']}
+• Risk/Reward: 1:{signal['risk_reward_ratio']}
+
+💰 *Risk Management:*
+• Position Size: {signal['position_size']} lots
+• Risk Amount: ${config.min_account_balance * (config.risk_percentage / 100):.2f}
+
+📈 *Technical Analysis:*
+• SMC FVGs: {signal['smc_analysis']['fvgs']}
+• Order Blocks: {signal['smc_analysis']['order_blocks']}
+• Liquidity Sweeps: {signal['smc_analysis']['sweeps']}
+• ATR: {signal['atr']}
+
+⏰ *Time: {signal['timestamp'].strftime('%H:%M:%S')}*
+"""
+            return message
+            
+        except Exception as e:
+            logging.error(f"Error formatting signal message: {e}")
+            return "❌ Error formatting signal message"
     
     async def broadcast_to_channel(self, message: str):
         """Broadcast message to public channel"""
@@ -372,14 +407,15 @@ Join our public channel for automatic 10/10 signal alerts!
                 text=message,
                 parse_mode="Markdown"
             )
-            logging.info(f"Message broadcasted to channel {config.public_channel_id}")
+            logging.info(f"Message broadcasted to channel: {config.public_channel_id}")
         except Exception as e:
             logging.error(f"Error broadcasting to channel: {e}")
     
-    def run(self):
-        """Start the bot"""
-        logging.info("Starting Telegram bot...")
-        self.application.run_polling(allowed_updates=Update.ALL_TYPES)
+    async def run(self):
+        """Run the bot"""
+        await self.application.initialize()
+        await self.application.start()
+        logging.info("Telegram bot started successfully")
 
 # Global bot instance
 telegram_bot = TelegramBot()
