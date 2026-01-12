@@ -106,9 +106,8 @@ class SyntheticsPublicBot:
             # Start the bot
             await self.start()
             
-            # Keep the bot running
-            while True:
-                await asyncio.sleep(1)
+            # Run the Telegram bot (this is blocking)
+            telegram_bot.application.run_polling()
             
         except KeyboardInterrupt:
             logger.info("Received keyboard interrupt")
