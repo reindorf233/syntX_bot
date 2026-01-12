@@ -1,14 +1,20 @@
 import os
 import logging
-from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 class Config:
     def __init__(self):
-        load_dotenv()
+        # Telegram Bot Configuration
         self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.public_channel_id = os.getenv('PUBLIC_CHANNEL_ID')
+        self.bot_owner_id = os.getenv('BOT_OWNER_ID')  # Admin control
         
-        # MT5 Configuration
+        # Deriv API Configuration
+        self.deriv_app_id = os.getenv('DERIV_APP_ID')
+        self.deriv_token = os.getenv('DERIV_TOKEN')
+        
+        # MT5 Configuration (fallback)
         try:
             self.mt5_login = int(os.getenv('MT5_LOGIN', 0))
         except ValueError:
@@ -37,10 +43,23 @@ class Config:
         self.macd_slow = int(os.getenv('MACD_SLOW', 26))
         self.macd_signal = int(os.getenv('MACD_SIGNAL', 9))
         
-        # Validate required settings
-        self.validate()
+        # AI/ML Settings
+        self.ai_enabled = os.getenv('AI_ENABLED', 'true').lower() == 'true'
+        self.ai_confidence_threshold = float(os.getenv('AI_CONFIDENCE_THRESHOLD', 0.7))
+        self.ai_training_epochs = int(os.getenv('AI_TRAINING_EPOCHS', 20))
+        
+        # Webhook Settings (for hosting)
+        self.webhook_url = os.getenv('WEBHOOK_URL')
+        self.port = int(os.getenv('PORT', 8080))
+        
+        # Rate Limiting
+        self.user_rate_limit = int(os.getenv('USER_RATE_LIMIT', 5))  # requests per minute
+        
+        # Validation
+        self._validate_config()
     
-    def validate(self):
+    def _validate_config(self):
+        """Validate configuration settings"""
         if not self.telegram_bot_token:
             raise ValueError("TELEGRAM_BOT_TOKEN is required")
         
