@@ -9,8 +9,18 @@ from config import config
 
 class TelegramBot:
     def __init__(self):
-        self.application = Application.builder().token(config.telegram_bot_token).build()
-        self.setup_handlers()
+        # Check if token is available
+        if not config.telegram_bot_token or config.telegram_bot_token == "YOUR_BOT_TOKEN_HERE":
+            logging.warning("TELEGRAM_BOT_TOKEN not set - bot will not work")
+            self.application = None
+            return
+        
+        try:
+            self.application = Application.builder().token(config.telegram_bot_token).build()
+            self.setup_handlers()
+        except Exception as e:
+            logging.error(f"Failed to initialize Telegram bot: {e}")
+            self.application = None
     
     def setup_handlers(self):
         """Setup bot command and callback handlers"""
@@ -413,9 +423,16 @@ Join our public channel for automatic 10/10 signal alerts!
     
     async def run(self):
         """Run the bot"""
-        await self.application.initialize()
-        await self.application.start()
-        logging.info("Telegram bot started successfully")
+        if self.application is None:
+            logging.warning("Telegram bot not initialized - cannot start")
+            return
+        
+        try:
+            await self.application.initialize()
+            await self.application.start()
+            logging.info("Telegram bot started successfully")
+        except Exception as e:
+            logging.error(f"Failed to start Telegram bot: {e}")
 
 # Global bot instance
 telegram_bot = TelegramBot()

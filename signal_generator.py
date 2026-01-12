@@ -113,6 +113,9 @@ class SignalGenerator:
     def normalize_deriv_price(self, raw_price: float, symbol: str) -> float:
         """Normalize Deriv API price to standard display range"""
         try:
+            # Debug logging
+            logging.info(f"Raw price for {symbol}: {raw_price}")
+            
             # Volatility indices often have scaling issues
             if symbol.startswith('R_') and symbol != 'R_75':  # Exclude R_75 as baseline
                 # Common scaling factors based on typical ranges
@@ -130,13 +133,23 @@ class SignalGenerator:
                     }
                     factor = scaling_factors.get(symbol, 17.36)
                     normalized = raw_price / factor
-                    logging.info(f"Normalized {symbol} price: {raw_price} -> {normalized}")
+                    logging.info(f"Normalized {symbol} price: {raw_price} -> {normalized} (factor: {factor})")
                     return round(normalized, 2)
+            
+            # For other symbols, check if they need normalization
+            if raw_price > 90000:
+                # Apply general normalization for any symbol with inflated prices
+                factor = 17.36  # Default factor
+                normalized = raw_price / factor
+                logging.info(f"General normalization for {symbol}: {raw_price} -> {normalized}")
+                return round(normalized, 2)
             
             # Boom/Crash indices typically don't need normalization
             # Step Index also typically stable
             
-            return round(raw_price, 2)
+            normalized_price = round(raw_price, 2)
+            logging.info(f"No normalization needed for {symbol}: {raw_price} -> {normalized_price}")
+            return normalized_price
             
         except Exception as e:
             logging.error(f"Error normalizing price for {symbol}: {e}")
