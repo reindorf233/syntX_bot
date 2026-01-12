@@ -2,7 +2,7 @@
 
 # Core Dependencies
 python-telegram-bot>=20.0
-python-deriv-api>=2.0.0
+python-deriv-api>=0.1.6
 numpy>=1.24.0
 pandas>=2.0.0
 python-dotenv>=1.0.0
