@@ -39,7 +39,7 @@ class Config:
         self.ai_training_epochs = int(os.getenv('AI_TRAINING_EPOCHS', 20))
         
         # Webhook Settings (for hosting)
-        self.webhook_url = os.getenv('WEBHOOK_URL')
+        self.webhook_url = os.getenv('WEBHOOK_URL', 'https://your-app-url.onrender.com/webhook')
         self.port = int(os.getenv('PORT', 8080))
         
         # Rate Limiting
