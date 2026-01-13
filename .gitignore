@@ -63,9 +63,39 @@ Thumbs.db
 .coverage
 .pytest_cache/
 htmlcov/
+.early.coverage/
 
 # Bot specific
 bot_database.db
 bot.log
 
-.early.coverage
+# Test files (keep only essential)
+test_*.py
+
+# Backup files
+*_backup.py
+*_fixed.py
+
+# Duplicate files (keep only the ones we need)
+main.py
+telegram_bot.py
+deriv_api_handler.py
+signal_generator.py
+technical_analyzer.py
+database.py
+ai_validator.py
+auto_scanner.py
+backtester.py
+
+# Multiple READMEs (keep only main)
+README_FRESH.md
+ADVANCED_FEATURES.md
+GITHUB_SETUP.md
+
+# Multiple requirements (keep only one)
+requirements-advanced.txt
+requirements-cloud.txt
+requirements.txt
+
+# Windsurf
+.windsurf/

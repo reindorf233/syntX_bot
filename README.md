@@ -1,12 +1,6 @@
-# 🚀 Deriv SyntX Bot - Professional Trading Signals
+# 🤖 syntX Bot - AI-Enhanced Trading System
 
-[![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)](https://python.org)
-[![Telegram](https://img.shields.io/badge/Telegram-20.0%2B-blue.svg)](https://python-telegram-bot.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-
-## 📊 **Professional AI-Enhanced Trading Bot**
-
-A sophisticated Telegram bot for Deriv synthetic indices with **real-time API integration**, **AI-powered signal validation**, and **professional-grade features**.
+> **Advanced AI-powered trading bot for Deriv synthetic indices with multiple strategies and intelligent risk management**
 
 ### ✨ **Key Features**
 
