@@ -5,3 +5,6 @@ numpy
 python-dotenv
 asyncio
 logging
+openai
+anthropic
+google-generativeai

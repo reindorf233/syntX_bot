@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-syntX_bot - Advanced Trading Bot with Multiple Strategies
-Fresh deployment with no simulation mode
+syntX_bot - Advanced Trading Bot with Multiple Strategies + AI
+Fresh deployment with no simulation mode and AI-enhanced analysis
 """
 import asyncio
 import logging
@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 import telegram
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from ai_analysis_engine import AIAnalysisEngine
 
 # Configure logging
 logging.basicConfig(
@@ -22,13 +23,14 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 class AdvancedTradingBot:
-    """Advanced trading bot with multiple strategies"""
+    """Advanced trading bot with multiple strategies + AI enhancement"""
     
     def __init__(self):
         # Configuration
         self.telegram_token = os.getenv('TELEGRAM_BOT_TOKEN', '8592086807:AAHfNHsBY4cuwDfvvFUMkmw5bZiC0ObJmCk')
         self.deriv_app_id = os.getenv('DERIV_APP_ID', '120931')
         self.deriv_token = os.getenv('DERIV_TOKEN', 'RNaduc1QRp2NxMJ')
+        self.ai_api_key = os.getenv('AI_API_KEY')  # OpenAI, Anthropic, or Gemini
         
         # Trading symbols
         self.symbols = {
@@ -45,18 +47,19 @@ class AdvancedTradingBot:
             'Range Break 200 Index': 'RB200'
         }
         
-        # Strategy weights
+        # Strategy weights (updated with AI)
         self.strategy_weights = {
-            'smc': 0.25,      # Smart Money Concepts
-            'trend': 0.20,     # Trend Following
-            'momentum': 0.20,   # Momentum Trading
-            'mean_reversion': 0.15,  # Mean Reversion
-            'breakout': 0.10,   # Breakout Trading
-            'volume': 0.10       # Volume Analysis
+            'ai_analysis': 0.35,    # AI-powered analysis (highest weight)
+            'smc': 0.20,           # Smart Money Concepts
+            'trend': 0.15,          # Trend Following
+            'momentum': 0.15,        # Momentum Trading
+            'mean_reversion': 0.10,   # Mean Reversion
+            'breakout': 0.05         # Breakout Trading
         }
         
         # Initialize components
         self.deriv_handler = None
+        self.ai_engine = AIAnalysisEngine(self.ai_api_key)
         self.active_signals = {}
         
     async def initialize(self):
@@ -335,6 +338,48 @@ class AdvancedTradingBot:
             logger.error(f"Breakout analysis error: {e}")
             return {'strategy': 'BREAKOUT', 'direction': 'NEUTRAL', 'strength': 0.0}
     
+    def calculate_technical_indicators(self, price_data: pd.DataFrame) -> Dict:
+        """Calculate technical indicators for AI analysis"""
+        try:
+            indicators = {}
+            
+            # RSI
+            delta = price_data['close'].diff()
+            gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+            loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+            rs = gain / loss
+            indicators['rsi'] = 100 - (100 / (1 + rs))
+            
+            # MACD
+            exp1 = price_data['close'].ewm(span=12).mean()
+            exp2 = price_data['close'].ewm(span=26).mean()
+            indicators['macd'] = (exp1 - exp2).iloc[-1]
+            
+            # Bollinger Bands
+            sma = price_data['close'].rolling(window=20).mean()
+            std = price_data['close'].rolling(window=20).std()
+            upper_band = sma + (std * 2)
+            lower_band = sma - (std * 2)
+            
+            current_price = price_data['close'].iloc[-1]
+            indicators['bb_position'] = (current_price - lower_band.iloc[-1]) / (upper_band.iloc[-1] - lower_band.iloc[-1])
+            
+            # Volume trend
+            indicators['volume_trend'] = price_data['volume'].pct_change().tail(5).mean()
+            
+            # ATR
+            high_low = price_data['high'] - price_data['low']
+            high_close = abs(price_data['high'] - price_data['close'].shift())
+            low_close = abs(price_data['low'] - price_data['close'].shift())
+            true_range = pd.concat([high_low, high_close, low_close], axis=1).max(axis=1)
+            indicators['atr'] = true_range.rolling(window=14).mean().iloc[-1]
+            
+            return indicators
+            
+        except Exception as e:
+            logger.error(f"Technical indicators error: {e}")
+            return {}
+    
     def detect_fvg(self, price_data: pd.DataFrame) -> Dict:
         """Detect Fair Value Gaps"""
         fvg_zones = {'bullish': [], 'bearish': []}
@@ -419,7 +464,7 @@ class AdvancedTradingBot:
         return liquidity_levels
     
     async def generate_signal(self, symbol: str) -> Optional[Dict]:
-        """Generate comprehensive trading signal"""
+        """Generate comprehensive trading signal with AI enhancement"""
         try:
             # Get live price
             current_price = await self.get_live_price(symbol)
@@ -431,8 +476,28 @@ class AdvancedTradingBot:
             if price_data is None or len(price_data) == 0:
                 return None
             
-            # Run all strategies
+            # Calculate technical indicators
+            technical_indicators = self.calculate_technical_indicators(price_data)
+            
+            # Prepare market data
+            market_data = {
+                'price_changes': price_data['close'].pct_change().dropna().tolist()[-20:],
+                'volume_data': price_data['volume'].tolist()[-20:],
+                'high_low_data': {
+                    'recent_high': price_data['high'].tail(20).max(),
+                    'recent_low': price_data['low'].tail(20).min()
+                }
+            }
+            
+            # Run all strategies including AI
             strategies = []
+            
+            # AI Analysis (highest priority)
+            logger.info(f"🤖 Running AI analysis for {symbol}")
+            ai_signal = await self.ai_engine.analyze_with_ai(
+                symbol, price_data, market_data, technical_indicators
+            )
+            strategies.append(ai_signal)
             
             # SMC Analysis
             smc_signal = await self.analyze_with_smc(symbol, price_data)
@@ -463,9 +528,12 @@ class AdvancedTradingBot:
                 'current_price': current_price,
                 'timestamp': datetime.now().isoformat(),
                 'strategies': strategies,
-                'is_simulated': False
+                'is_simulated': False,
+                'ai_enhanced': True,
+                'ai_confidence': ai_signal.get('ai_confidence', 0.0)
             })
             
+            logger.info(f"✅ AI-enhanced signal generated for {symbol}: {final_signal['direction']} (Strength: {final_signal['strength']:.1f})")
             return final_signal
             
         except Exception as e:
@@ -613,12 +681,14 @@ class AdvancedTradingBot:
         return InlineKeyboardMarkup(keyboard)
     
     def format_signal_message(self, signal: Dict) -> str:
-        """Format signal message for Telegram"""
+        """Format signal message for Telegram with AI enhancement"""
         direction_emoji = "🟢" if signal['direction'] == 'BULLISH' else "🔴" if signal['direction'] == 'BEARISH' else "⚪"
+        ai_emoji = "🤖" if signal.get('ai_enhanced', False) else "📊"
+        confidence = signal.get('ai_confidence', signal['strength'] / 10)
         
         message = f"""
 {direction_emoji} **{signal['symbol']}**
-📊 **LIVE DATA** • Strength: {signal['strength']:.1f}/10
+{ai_emoji} **AI-ENHANCED** • Strength: {signal['strength']:.1f}/10 • Confidence: {confidence:.1%}
 
 📈 **Signal Details:**
 • Direction: {signal['direction']}
@@ -627,9 +697,16 @@ class AdvancedTradingBot:
 • Take Profit: {signal['take_profit']:.2f}
 • Risk/Reward: 1:{signal['risk_reward']:.2f}
 
+🤖 **AI Analysis:**
+• AI Confidence: {confidence:.1%}
+• AI Model: {signal.get('ai_model', 'Local')}
+• AI Provider: {signal.get('ai_provider', 'Local Analysis')}
+• Patterns Found: {len(signal.get('ai_predictions', {}).get('patterns_found', []))}
+
 💰 **Risk Management:**
 • Position Size: 0.01 lots
 • Risk Amount: $0.05
+• Risk Level: {signal.get('risk_analysis', {}).get('risk_level', 'MEDIUM')}
 
 ⏰ {signal['timestamp']}
         """
