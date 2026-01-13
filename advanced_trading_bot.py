@@ -30,7 +30,7 @@ class AdvancedTradingBot:
         self.telegram_token = os.getenv('TELEGRAM_BOT_TOKEN', '8592086807:AAHfNHsBY4cuwDfvvFUMkmw5bZiC0ObJmCk')
         self.deriv_app_id = os.getenv('DERIV_APP_ID', '120931')
         self.deriv_token = os.getenv('DERIV_TOKEN', 'RNaduc1QRp2NxMJ')
-        self.ai_api_key = os.getenv('AI_API_KEY')  # OpenAI, Anthropic, or Gemini
+        self.ai_api_key = os.getenv('AI_API_KEY', '46398b22307b44a9958c41c6c566f869')  # OpenAI, Anthropic, or Gemini
         
         # Trading symbols
         self.symbols = {

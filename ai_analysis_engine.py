@@ -17,7 +17,7 @@ class AIAnalysisEngine:
     """AI-powered trading analysis engine"""
     
     def __init__(self, ai_api_key: str = None):
-        self.ai_api_key = ai_api_key or os.getenv('AI_API_KEY')
+        self.ai_api_key = ai_api_key or os.getenv('AI_API_KEY', '46398b22307b44a9958c41c6c566f869')
         self.ai_provider = os.getenv('AI_PROVIDER', 'openai')  # openai, anthropic, gemini
         self.model_name = os.getenv('AI_MODEL', 'gpt-4')
         
