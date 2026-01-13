@@ -6,13 +6,13 @@ logger = logging.getLogger(__name__)
 class Config:
     def __init__(self):
         # Telegram Bot Configuration
-        self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
-        self.public_channel_id = os.getenv('PUBLIC_CHANNEL_ID')
+        self.telegram_bot_token = os.getenv('TELEGRAM_BOT_TOKEN') or '8592086807:AAHfNHsBY4cuwDfvvFUMkmw5bZiC0ObJmCk'
+        self.public_channel_id = os.getenv('PUBLIC_CHANNEL_ID') or '@syntXSAFE'
         self.bot_owner_id = os.getenv('BOT_OWNER_ID')  # Admin control
         
-        # Deriv API Configuration (Primary)
-        self.deriv_app_id = os.getenv('DERIV_APP_ID')
-        self.deriv_token = os.getenv('DERIV_TOKEN')
+        # Deriv API Configuration (Primary) - HARDCODED FOR TESTING
+        self.deriv_app_id = os.getenv('DERIV_APP_ID') or '120931'
+        self.deriv_token = os.getenv('DERIV_TOKEN') or 'RNaduc1QRp2NxMJ'
         
         # Bot Settings
         self.scan_interval_minutes = int(os.getenv('SCAN_INTERVAL_MINUTES', 10))

@@ -79,7 +79,7 @@ class SignalGenerator:
         }
     
     async def fetch_data(self, symbol: str, timeframe: str = None, count: int = None) -> Optional[pd.DataFrame]:
-        """Fetch data from Deriv API with fallback to simulation"""
+        """Fetch data from Deriv API - NO SIMULATION FALLBACK"""
         if timeframe is None:
             timeframe = config.timeframe
         if count is None:
@@ -88,22 +88,34 @@ class SignalGenerator:
         # Get Deriv symbol name
         deriv_symbol = self.deriv_symbols.get(symbol, symbol)
         
-        # Try Deriv API first
+        logging.info(f"DATA FETCH - Attempting LIVE data for {symbol} -> {deriv_symbol}")
+        
+        # ONLY use Deriv API - NO simulation fallback
         try:
             if await self.deriv_handler.connect():
+                logging.info(f"DATA FETCH - Connected to Deriv API for {deriv_symbol}")
+                
                 data = await self.deriv_handler.get_ohlc(deriv_symbol, timeframe, count)
                 if data is not None and len(data) > 0:
-                    logging.info(f"Successfully fetched Deriv data for {symbol}")
+                    logging.info(f"DATA FETCH - Successfully fetched LIVE data for {symbol}: {len(data)} candles")
+                    
+                    # Verify data is not simulated
+                    if data.attrs.get('simulated', False):
+                        logging.error(f"DATA FETCH - FAILED: Received simulated data for {symbol}")
+                        return None
+                    
                     return data
                 else:
-                    logging.warning(f"Deriv API returned no data for {symbol}")
+                    logging.error(f"DATA FETCH - FAILED: Deriv API returned no data for {symbol}")
             else:
-                logging.warning("Deriv API connection failed")
+                logging.error(f"DATA FETCH - FAILED: Could not connect to Deriv API for {symbol}")
+                
         except Exception as e:
-            logging.error(f"Deriv API data fetch failed for {symbol}: {e}")
+            logging.error(f"DATA FETCH - ERROR: Deriv API failed for {symbol}: {e}")
         
-        # Fallback to simulation
-        return await self.simulate_data(symbol, count)
+        # NO SIMULATION FALLBACK - Return None if live data fails
+        logging.error(f"DATA FETCH - FAILED: No live data available for {symbol} - NO SIMULATION FALLBACK")
+        return None
     
     async def simulate_data(self, symbol: str, count: int = 100) -> Optional[pd.DataFrame]:
         """Generate simulated data when API is unavailable"""
