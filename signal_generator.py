@@ -39,22 +39,43 @@ class SignalGenerator:
             config.deriv_token
         )
         
-        # Symbol mapping for Deriv API
+        # Symbol mapping for Deriv API - CORRECTED SYMBOLS
         self.deriv_symbols = {
+            # Volatility Indices (standard)
             'Volatility 10 Index': 'R_10',
             'Volatility 25 Index': 'R_25',
             'Volatility 50 Index': 'R_50',
             'Volatility 75 Index': 'R_75',
             'Volatility 100 Index': 'R_100',
+            
+            # Volatility Indices (1 second)
+            'Volatility 10 Index (1s)': 'R_10_1S',
+            'Volatility 25 Index (1s)': 'R_25_1S',
+            'Volatility 50 Index (1s)': 'R_50_1S',
+            'Volatility 75 Index (1s)': 'R_75_1S',
+            'Volatility 100 Index (1s)': 'R_100_1S',
+            
+            # Boom/Crash Indices
+            'Boom 300 Index': 'BOOM300',
             'Boom 500 Index': 'BOOM500',
             'Boom 1000 Index': 'BOOM1000',
+            'Crash 300 Index': 'CRASH300',
             'Crash 500 Index': 'CRASH500',
             'Crash 1000 Index': 'CRASH1000',
-            'Step Index': 'R_STEPINDEX',  # Fixed: Use R_ prefix for Deriv API
-            'Jump 25 Index': 'R_JUMPM25',
-            'Jump 50 Index': 'R_JUMPM50',
-            'Jump 75 Index': 'R_JUMPM75',
-            'Jump 100 Index': 'R_JUMPM100'
+            
+            # Jump Indices
+            'Jump 10 Index': 'JD10',
+            'Jump 25 Index': 'JD25',
+            'Jump 50 Index': 'JD50',
+            'Jump 75 Index': 'JD75',
+            'Jump 100 Index': 'JD100',
+            
+            # Range Break Indices
+            'Range Break 100 Index': 'RB100',
+            'Range Break 200 Index': 'RB200',
+            
+            # Step Index
+            'Step Index': 'R_STEPINDEX'
         }
     
     async def fetch_data(self, symbol: str, timeframe: str = None, count: int = None) -> Optional[pd.DataFrame]:
@@ -165,121 +186,133 @@ class SignalGenerator:
         
         return None
     
-    def normalize_deriv_price(self, raw_price: float, symbol: str) -> float:
-        """Normalize Deriv API price to standard display range"""
+    def validate_and_log_price(self, raw_price: float, symbol: str) -> float:
+        """Validate price is within expected range and log details"""
         try:
-            # Debug logging
-            logging.info(f"Raw price for {symbol}: {raw_price}")
+            # Expected price ranges for different symbol types
+            expected_ranges = {
+                # Volatility indices (standard)
+                'R_10': (4000, 8000),
+                'R_25': (4000, 8000),
+                'R_50': (4000, 8000),
+                'R_75': (4000, 8000),
+                'R_100': (4000, 8000),
+                
+                # Volatility indices (1s)
+                'R_10_1S': (4000, 8000),
+                'R_25_1S': (4000, 8000),
+                'R_50_1S': (4000, 8000),
+                'R_75_1S': (4000, 8000),
+                'R_100_1S': (4000, 8000),
+                
+                # Boom/Crash indices
+                'BOOM300': (1000, 3000),
+                'BOOM500': (1000, 3000),
+                'BOOM1000': (1000, 3000),
+                'CRASH300': (1000, 3000),
+                'CRASH500': (1000, 3000),
+                'CRASH1000': (1000, 3000),
+                
+                # Jump indices
+                'JD10': (4000, 8000),
+                'JD25': (4000, 8000),
+                'JD50': (4000, 8000),
+                'JD75': (4000, 8000),
+                'JD100': (4000, 8000),
+                
+                # Range Break indices
+                'RB100': (1000, 3000),
+                'RB200': (1000, 3000),
+                
+                # Step Index
+                'R_STEPINDEX': (1000, 3000)
+            }
             
-            # Step Index special handling - typically trades 1000-2000 range
-            if symbol == 'R_STEPINDEX':
-                # Step Index usually doesn't need scaling, but check for obvious errors
-                if raw_price > 10000:
-                    # If price is way too high, scale it down
-                    normalized = raw_price / 10
-                    logging.info(f"Step Index normalization: {raw_price} -> {normalized}")
-                    return round(normalized, 2)
-                elif raw_price < 100:
-                    # If price is way too low, scale it up
-                    normalized = raw_price * 10
-                    logging.info(f"Step Index normalization: {raw_price} -> {normalized}")
-                    return round(normalized, 2)
-                else:
-                    # Step Index is in correct range
-                    logging.info(f"Step Index no normalization needed: {raw_price}")
-                    return round(raw_price, 2)
+            # Get expected range for this symbol
+            min_expected, max_expected = expected_ranges.get(symbol, (100, 10000))
             
-            # Volatility indices often have scaling issues
-            if symbol.startswith('R_') and symbol not in ['R_75', 'R_STEPINDEX']:
-                # Common scaling factors based on typical ranges
-                if raw_price > 90000:
-                    # Price is likely scaled up, normalize down
-                    scaling_factors = {
-                        'R_10': 17.36,   # Volatility 10
-                        'R_25': 17.36,   # Volatility 25  
-                        'R_50': 17.36,   # Volatility 50
-                        'R_100': 17.36,  # Volatility 100
-                        'R_JUMPM25': 17.36,  # Jump 25
-                        'R_JUMPM50': 17.36,  # Jump 50
-                        'R_JUMPM75': 17.36,  # Jump 75
-                        'R_JUMPM100': 17.36, # Jump 100
-                    }
-                    factor = scaling_factors.get(symbol, 17.36)
-                    normalized = raw_price / factor
-                    logging.info(f"Normalized {symbol} price: {raw_price} -> {normalized} (factor: {factor})")
-                    return round(normalized, 2)
+            # Log detailed information
+            logging.info(f"PRICE VALIDATION - Symbol: {symbol}")
+            logging.info(f"PRICE VALIDATION - Raw Price: {raw_price}")
+            logging.info(f"PRICE VALIDATION - Expected Range: {min_expected} - {max_expected}")
+            logging.info(f"PRICE VALIDATION - App ID: {config.deriv_app_id}")
+            logging.info(f"PRICE VALIDATION - Timestamp: {pd.Timestamp.now().isoformat()}")
             
-            # Boom/Crash indices typically don't need normalization
-            # But check for obvious scaling issues
-            if symbol.startswith(('BOOM', 'CRASH')):
-                if raw_price > 10000:
-                    # Boom/Crash typically in 1000-2000 range
-                    normalized = raw_price / 10
-                    logging.info(f"Boom/Crash normalization: {raw_price} -> {normalized}")
-                    return round(normalized, 2)
+            # Validate price is within reasonable range
+            if min_expected <= raw_price <= max_expected:
+                logging.info(f"PRICE VALIDATION - ✅ Price within expected range: {raw_price}")
+                return round(raw_price, 2)
+            else:
+                logging.error(f"PRICE VALIDATION - ❌ Price OUT OF RANGE: {raw_price} (expected {min_expected}-{max_expected})")
+                # Return the price anyway but flag it
+                return round(raw_price, 2)
+                
+        except Exception as e:
+            logging.error(f"PRICE VALIDATION - Error validating price for {symbol}: {e}")
+            return round(raw_price, 2)
+    
+    def normalize_deriv_price(self, raw_price: float, symbol: str) -> float:
+        """NO SCALING - Use Deriv API prices directly as they are already correctly scaled"""
+        try:
+            # Deriv API returns prices already correctly scaled
+            # DO NOT apply any scaling factors
+            # DO NOT multiply by pip/point/contract size
+            # Use the price exactly as received from Deriv
             
-            # For other symbols, check if they need normalization
-            if raw_price > 90000:
-                # Apply general normalization for any symbol with inflated prices
-                factor = 17.36  # Default factor
-                normalized = raw_price / factor
-                logging.info(f"General normalization for {symbol}: {raw_price} -> {normalized}")
-                return round(normalized, 2)
+            logging.info(f"PRICE NORMALIZATION - Symbol: {symbol}")
+            logging.info(f"PRICE NORMALIZATION - Raw API Price: {raw_price}")
             
-            normalized_price = round(raw_price, 2)
-            logging.info(f"No normalization needed for {symbol}: {raw_price} -> {normalized_price}")
-            return normalized_price
+            # Validate and log the price
+            validated_price = self.validate_and_log_price(raw_price, symbol)
+            
+            logging.info(f"PRICE NORMALIZATION - Final Price (NO SCALING): {validated_price}")
+            return validated_price
             
         except Exception as e:
-            logging.error(f"Error normalizing price for {symbol}: {e}")
+            logging.error(f"PRICE NORMALIZATION - Error processing price for {symbol}: {e}")
             return round(raw_price, 2)
     
     async def get_current_price(self, symbol: str) -> Optional[Tuple[float, float, bool]]:
-        """Get current price with indication if simulated"""
+        """Get current price from LIVE Deriv API - NO SIMULATION FALLBACK"""
         # Get Deriv symbol name
         deriv_symbol = self.deriv_symbols.get(symbol, symbol)
         
-        # Try Deriv API first
+        logging.info(f"PRICE FETCH - Attempting LIVE price for {symbol} -> {deriv_symbol}")
+        
+        # ONLY use live Deriv API - NO simulation fallback
         try:
             if await self.deriv_handler.connect():
+                logging.info(f"PRICE FETCH - Connected to Deriv API for {deriv_symbol}")
+                
                 ticks = await self.deriv_handler.get_ticks_history(deriv_symbol, 1)
                 if ticks is not None and len(ticks) > 0:
                     raw_price = ticks.iloc[-1]['close']
-                    # Normalize price if needed
+                    
+                    # Log the raw tick data
+                    logging.info(f"PRICE FETCH - Raw tick data for {deriv_symbol}: {ticks.iloc[-1].to_dict()}")
+                    
+                    # NO SCALING - Use price exactly as received
                     normalized_price = self.normalize_deriv_price(raw_price, deriv_symbol)
                     
-                    # For synthetic indices, bid/ask are usually close to each other
-                    spread = normalized_price * 0.0001  # Small spread
-                    return normalized_price - spread, normalized_price + spread, False  # bid, ask, not_simulated
+                    # Calculate realistic spread
+                    spread = normalized_price * 0.0001  # Small spread for synthetic indices
+                    
+                    bid = round(normalized_price - spread, 2)
+                    ask = round(normalized_price + spread, 2)
+                    
+                    logging.info(f"PRICE FETCH - LIVE price for {symbol}: Bid={bid}, Ask={ask}, Simulated=FALSE")
+                    
+                    return bid, ask, False  # bid, ask, NOT_SIMULATED
+                else:
+                    logging.error(f"PRICE FETCH - No tick data received for {deriv_symbol}")
+            else:
+                logging.error(f"PRICE FETCH - Failed to connect to Deriv API for {deriv_symbol}")
+                
         except Exception as e:
-            logging.error(f"Deriv API price fetch failed for {symbol}: {e}")
+            logging.error(f"PRICE FETCH - Deriv API error for {symbol}: {e}")
         
-        # Fallback to simulation
-        try:
-            # Use realistic base price for simulation
-            base_prices = {
-                'Step Index': 1500,
-                'Volatility 10 Index': 5750,
-                'Volatility 25 Index': 5750,
-                'Volatility 50 Index': 5750,
-                'Volatility 75 Index': 5750,
-                'Volatility 100 Index': 5750,
-                'Boom 500 Index': 1500,
-                'Boom 1000 Index': 1500,
-                'Crash 500 Index': 1500,
-                'Crash 1000 Index': 1500,
-                'Jump 25 Index': 5750,
-                'Jump 50 Index': 5750,
-                'Jump 75 Index': 5750,
-                'Jump 100 Index': 5750
-            }
-            
-            base_price = base_prices.get(symbol, 1000)
-            spread = base_price * 0.0001
-            return base_price - spread, base_price + spread, True  # bid, ask, simulated
-        except Exception as e:
-            logging.error(f"Simulated price failed for {symbol}: {e}")
-        
+        # NO SIMULATION FALLBACK - Return None if live data fails
+        logging.error(f"PRICE FETCH - FAILED to get LIVE price for {symbol} - NO SIMULATION FALLBACK")
         return None
     
     async def analyze_symbol(self, symbol: str) -> Optional[Dict]:
@@ -297,13 +330,21 @@ class SignalGenerator:
             # Get signal strength
             signal_strength = technical_analyzer.get_signal_strength(data)
             
-            # Get current price
+            # Get current price - MUST be live data
             current_price_info = await self.get_current_price(symbol)
             if current_price_info is None:
+                logging.error(f"ANALYSIS - FAILED: No live price available for {symbol}")
                 return None
             
             bid, ask, is_simulated = current_price_info
             current_price = (bid + ask) / 2
+            
+            # Verify this is live data, not simulated
+            if is_simulated:
+                logging.error(f"ANALYSIS - FAILED: Received simulated data for {symbol} - expected live data")
+                return None
+            
+            logging.info(f"ANALYSIS - Using LIVE price for {symbol}: {current_price}")
             
             # Calculate risk levels
             atr = data['atr'].iloc[-1] if not pd.isna(data['atr'].iloc[-1]) else current_price * 0.01
@@ -322,7 +363,7 @@ class SignalGenerator:
                 stop_loss = current_price - (atr * 1.5)
                 take_profit = current_price + (atr * 2.5)
             
-            # Normalize all prices for display consistency
+            # Normalize all prices for display consistency (NO SCALING)
             deriv_symbol = self.deriv_symbols.get(symbol, symbol)
             entry_price = self.normalize_deriv_price(entry_price, deriv_symbol)
             stop_loss = self.normalize_deriv_price(stop_loss, deriv_symbol)
@@ -339,6 +380,14 @@ class SignalGenerator:
             sweeps = technical_analyzer.identify_liquidity_sweeps(data.tail(20))
             price_action = technical_analyzer.analyze_price_action(data.tail(10))
             
+            # Verify data is not simulated
+            data_simulated = data.attrs.get('simulated', False)
+            if data_simulated:
+                logging.error(f"ANALYSIS - FAILED: Historical data is simulated for {symbol}")
+                return None
+            
+            logging.info(f"ANALYSIS - SUCCESS: Generated LIVE signal for {symbol} at {current_price}")
+            
             return {
                 'symbol': symbol,
                 'direction': signal_strength['direction'],
@@ -350,7 +399,7 @@ class SignalGenerator:
                 'risk_reward_ratio': round(abs(take_profit - entry_price) / abs(stop_loss - entry_price), 2),
                 'current_price': round(current_price, 2),
                 'atr': round(atr, 2),
-                'is_simulated': is_simulated or data.attrs.get('simulated', False),
+                'is_simulated': False,  # FORCE to False - this is LIVE data
                 'factors': signal_strength.get('factors', {}),
                 'smc_analysis': {
                     'fvgs': len(fvgs),
